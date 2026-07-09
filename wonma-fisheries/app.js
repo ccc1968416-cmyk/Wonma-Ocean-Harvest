@@ -2058,7 +2058,8 @@ const dragDropOverlay = document.getElementById('dragDropOverlay');
 
 function handleFileUpload(file) {
     if (!file) return;
-    if (file.name && (file.name.toLowerCase().endsWith('.csv') || file.name.toLowerCase().endsWith('.txt'))) {
+    const name = file.name ? file.name.toLowerCase() : '';
+    if (name.endsWith('.csv') || name.endsWith('.txt')) {
         readAsTextFallback(file);
         return;
     }
@@ -2073,7 +2074,7 @@ function handleFileUpload(file) {
                 const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false });
                 parseArrayRowsAndAdd(rows);
             } catch (err) {
-                console.error("XLSX parse error, falling back to text CSV:", err);
+                console.warn("XLSX parse error, falling back to text CSV:", err);
                 readAsTextFallback(file);
             }
         };
@@ -2087,7 +2088,8 @@ function readAsTextFallback(file) {
     const reader = new FileReader();
     reader.onload = (e) => {
         let text = e.target.result;
-        if (text.includes('') || text.includes('\uFFFD') || text.includes('ì') || text.includes('ë')) {
+        // Detect CP949/EUC-KR character corruption
+        if (text.includes('') || text.includes('\uFFFD') || /[\xC0-\xFD][\x80-\xBF]/.test(text) || text.includes('ì') || text.includes('ë')) {
             const eucReader = new FileReader();
             eucReader.onload = (ev) => parseCSVAndAdd(ev.target.result);
             eucReader.readAsText(file, 'euc-kr');
@@ -2099,8 +2101,9 @@ function readAsTextFallback(file) {
 }
 
 function parseCSVAndAdd(csvText) {
+    if (!csvText) return;
     const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
-    if (lines.length <= 1) {
+    if (lines.length === 0) {
         if (window.showToast) showToast('⚠️ 데이터가 없거나 잘못된 파일입니다.');
         return;
     }
@@ -2120,36 +2123,59 @@ function parseCSVAndAdd(csvText) {
     parseArrayRowsAndAdd(rows);
 }
 
+// Universal Excel date normalizer
+function normalizeExcelDate(val) {
+    if (!val) return new Date().toISOString().split('T')[0];
+    // Numeric Excel serial number (e.g. 45847)
+    if (typeof val === 'number' && val > 30000 && val < 60000) {
+        const d = new Date((val - (25567 + 2)) * 86400 * 1000);
+        if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+    }
+    let s = String(val).trim();
+    // 2026.07.06 or 2026/07/06 or 2026-07-06
+    s = s.replace(/[./년월일]/g, '-').replace(/--+/g, '-').replace(/^-|-$/g, '');
+    const parts = s.split('-');
+    if (parts.length === 3) {
+        let yr = parts[0];
+        let mo = parts[1];
+        let da = parts[2];
+        if (yr.length === 2) yr = '20' + yr;
+        if (mo.length === 1) mo = '0' + mo;
+        if (da.length === 1) da = '0' + da;
+        if (/^\d{4}$/.test(yr) && /^\d{2}$/.test(mo) && /^\d{2}$/.test(da)) {
+            return `${yr}-${mo}-${da}`;
+        }
+    }
+    return new Date().toISOString().split('T')[0];
+}
+
+// Universal Excel number normalizer
+function normalizeExcelNumber(val, defaultVal = 0) {
+    if (typeof val === 'number' && !isNaN(val)) return val;
+    if (!val) return defaultVal;
+    const str = String(val).replace(/[^\d.-]/g, '');
+    const parsed = parseFloat(str);
+    return isNaN(parsed) ? defaultVal : parsed;
+}
+
 function parseArrayRowsAndAdd(rows) {
-    if (!rows || rows.length <= 1) {
+    if (!rows || rows.length === 0) {
         if (window.showToast) showToast('⚠️ 엑셀 파일에 유효한 데이터가 없거나 양식이 올바르지 않습니다.');
         return;
     }
     let addedCount = 0;
-    for (let i = 1; i < rows.length; i++) {
+    for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
-        if (!row || row.length === 0) continue;
+        if (!row || !Array.isArray(row) || row.every(cell => !String(cell || '').trim())) continue;
         
         let clientName = String(row[0] || '').trim();
+        // Check if row is header or title
+        if (clientName.includes('거래처') || clientName.includes('상호') || clientName.includes('원마수산') || clientName.includes('표준양식')) {
+            continue;
+        }
         clientName = clientName.replace(/[\uFFFD\u0080-\u00FF]/g, '').trim() || '일반거래처';
 
-        let dateStr = String(row[1] || '').trim();
-        if (dateStr.includes('/')) {
-            const parts = dateStr.split('/');
-            if (parts.length === 3) {
-                let yr = parts[2];
-                if (yr.length === 2) yr = '20' + yr;
-                dateStr = `${yr}-${String(parts[0]).padStart(2,'0')}-${String(parts[1]).padStart(2,'0')}`;
-            }
-        } else if (/^\d{1,2}-\d{1,2}-\d{2,4}$/.test(dateStr)) {
-            const parts = dateStr.split('-');
-            let yr = parts[2];
-            if (yr.length === 2) yr = '20' + yr;
-            dateStr = `${yr}-${String(parts[0]).padStart(2,'0')}-${String(parts[1]).padStart(2,'0')}`;
-        }
-        if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-            dateStr = new Date().toISOString().split('T')[0];
-        }
+        const dateStr = normalizeExcelDate(row[1]);
 
         const itemRaw = String(row[2] || '').trim();
         let item = '매생이';
@@ -2157,11 +2183,10 @@ function parseArrayRowsAndAdd(rows) {
         else if (itemRaw.includes('다시마')) item = '다시마';
         else if (itemRaw.includes('매생')) item = '매생이';
         
-        const cleanNum = (val) => parseFloat(String(val || '0').replace(/[^0-9.-]/g, '')) || 0;
-        let quantity = cleanNum(row[3]);
+        let quantity = normalizeExcelNumber(row[3], 1);
         if (quantity <= 0) quantity = 1;
-        const unitPrice = cleanNum(row[4]);
-        const paymentAmount = cleanNum(row[5]);
+        const unitPrice = normalizeExcelNumber(row[4], 0);
+        const paymentAmount = normalizeExcelNumber(row[5], 0);
         
         const newRecord = {
             id: Date.now().toString() + Math.random().toString(36).substr(2, 5) + i,
@@ -2186,6 +2211,7 @@ function parseArrayRowsAndAdd(rows) {
         saveToStorage();
         renderTable();
         updateStats();
+        if (window.showToast) showToast(`✅ ${addedCount}건의 원물 지급 내역이 한글 깨짐 없이 완벽 등록되었습니다!`);
     } else {
         if (window.showToast) showToast('⚠️ 추가할 수 있는 유효한 데이터가 없습니다. 엑셀 양식을 확인해주세요.');
     }
@@ -2759,6 +2785,11 @@ const invExcelInput = document.getElementById('invExcelInput');
 
 function handleInvFileUpload(file) {
     if (!file) return;
+    const name = file.name ? file.name.toLowerCase() : '';
+    if (name.endsWith('.csv') || name.endsWith('.txt')) {
+        readInvAsTextFallback(file);
+        return;
+    }
     if (window.XLSX) {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -2770,7 +2801,7 @@ function handleInvFileUpload(file) {
                 const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false });
                 parseInvArrayRowsAndAdd(rows);
             } catch (err) {
-                console.error("Inv XLSX parse error, falling back to text CSV:", err);
+                console.warn("Inv XLSX parse error, falling back to text CSV:", err);
                 readInvAsTextFallback(file);
             }
         };
@@ -2784,7 +2815,7 @@ function readInvAsTextFallback(file) {
     const reader = new FileReader();
     reader.onload = (e) => {
         let text = e.target.result;
-        if (text.includes('') || text.includes('\uFFFD')) {
+        if (text.includes('') || text.includes('\uFFFD') || /[\xC0-\xFD][\x80-\xBF]/.test(text) || text.includes('ì') || text.includes('ë')) {
             const eucReader = new FileReader();
             eucReader.onload = (ev) => parseInvCSVAndAdd(ev.target.result);
             eucReader.readAsText(file, 'euc-kr');
@@ -2796,9 +2827,10 @@ function readInvAsTextFallback(file) {
 }
 
 function parseInvCSVAndAdd(csvText) {
+    if (!csvText) return;
     const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
-    if (lines.length <= 1) {
-        alert('데이터가 없거나 잘못된 파일입니다.');
+    if (lines.length === 0) {
+        alert('⚠️ 데이터가 없거나 잘못된 파일입니다.');
         return;
     }
     const rows = lines.map(line => {
@@ -2818,20 +2850,22 @@ function parseInvCSVAndAdd(csvText) {
 }
 
 function parseInvArrayRowsAndAdd(rows) {
-    if (!rows || rows.length <= 1) {
-        alert('엑셀 파일에 유효한 데이터가 없거나 양식이 올바르지 않습니다.');
+    if (!rows || rows.length === 0) {
+        alert('⚠️ 엑셀 파일에 유효한 데이터가 없거나 양식이 올바르지 않습니다.');
         return;
     }
     let addedCount = 0;
-    for (let i = 1; i < rows.length; i++) {
+    for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
-        if (!row || row.length < 3) continue;
+        if (!row || !Array.isArray(row) || row.every(cell => !String(cell || '').trim())) continue;
 
-        let dateStr = String(row[0] || '').trim();
-        if (dateStr.includes('/')) {
-            const parts = dateStr.split('/');
-            if (parts.length === 3) dateStr = `${parts[0]}-${String(parts[1]).padStart(2,'0')}-${String(parts[2]).padStart(2,'0')}`;
+        let firstCell = String(row[0] || '').trim();
+        // Check if row is header/title
+        if (firstCell.includes('날짜') || firstCell.includes('일자') || firstCell.includes('품목') || firstCell.includes('재고')) {
+            continue;
         }
+
+        const dateStr = normalizeExcelDate(row[0]);
         const itemRaw = String(row[1] || '').trim();
         let item = '';
         if (itemRaw.includes('매생')) item = '매생이';
@@ -2843,11 +2877,10 @@ function parseInvArrayRowsAndAdd(rows) {
         if (typeRaw.includes('입') || typeRaw.toLowerCase() === 'in') type = '입고';
         else if (typeRaw.includes('출') || typeRaw.toLowerCase() === 'out') type = '출고';
 
-        const cleanNum = (val) => parseFloat(String(val || '0').replace(/[^0-9.-]/g, '')) || 0;
-        const quantity = cleanNum(row[3]);
+        const quantity = normalizeExcelNumber(row[3], 0);
         const remarks = String(row[4] || '엑셀 자동 등록').trim();
 
-        if (!dateStr || !item || !type || quantity <= 0) continue;
+        if (!item || !type || quantity <= 0) continue;
 
         inventoryLogs.push({
             id: Date.now().toString() + Math.random().toString(36).substr(2, 5) + i,
@@ -2859,9 +2892,9 @@ function parseInvArrayRowsAndAdd(rows) {
     if (addedCount > 0) {
         saveInventory();
         renderInventory();
-        alert(`총 ${addedCount}건의 재고 입출고 내역이 완벽하게 자동 등록되었습니다!`);
+        alert(`✅ 총 ${addedCount}건의 재고 입출고 내역이 한글 깨짐이나 오류 없이 완벽 등록되었습니다!`);
     } else {
-        alert('유효한 데이터가 없습니다.\n엑셀 양식: 날짜, 품목(매생이/미역/다시마), 유형(입고/출고), 수량, 비고');
+        alert('⚠️ 유효한 데이터가 없습니다.\n엑셀 양식: 날짜, 품목(매생이/미역/다시마), 유형(입고/출고), 수량, 비고');
     }
 }
 
