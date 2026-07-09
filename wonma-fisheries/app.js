@@ -220,23 +220,10 @@ function triggerLoginSuccess() {
     }, 12000);
 }
 
-// Futuristic luxury haptic audio feedback using HTML5 Web Audio API
+// Muted PIN sound effect per user request
 let audioCtx = null;
 function playHapticBeep(freq = 1200, type = 'sine', duration = 0.035, vol = 0.12) {
-    try {
-        if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if(audioCtx.state === 'suspended') audioCtx.resume();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start();
-        osc.stop(audioCtx.currentTime + duration);
-    } catch(e) { /* ignore audio errors on restricted mobile browsers */ }
+    return; // Silent mode
 }
 
 function updatePinDots() {
