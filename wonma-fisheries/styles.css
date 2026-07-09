@@ -98,6 +98,50 @@ body.theme-light td {
     color: #334155;
 }
 
+/* Light Theme Overrides for Login Overlay & PIN Keypad */
+body.theme-light .login-form-side {
+    background: #ffffff !important;
+}
+body.theme-light .toss-pin-title,
+body.theme-light #loginLogoText,
+body.theme-light #loginGreetingTitle {
+    color: #0f172a !important;
+}
+body.theme-light #loginGreetingSub {
+    color: #475569 !important;
+}
+body.theme-light .pin-key .key-num {
+    color: #0f172a !important;
+}
+body.theme-light .pin-key .key-sub {
+    color: #64748b !important;
+}
+body.theme-light .pin-key:hover {
+    background: #f1f5f9 !important;
+}
+body.theme-light .pin-key:hover .key-num {
+    color: #0284c7 !important;
+}
+body.theme-light .pin-key:active,
+body.theme-light .pin-key.pressed {
+    background: #e2e8f0 !important;
+}
+body.theme-light .pin-key:active .key-num,
+body.theme-light .pin-key.pressed .key-num {
+    color: #0284c7 !important;
+}
+body.theme-light .login-tabs {
+    background: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
+}
+body.theme-light .login-tab-btn {
+    color: #475569 !important;
+}
+body.theme-light .login-tab-btn.active {
+    background: #0ea5e9 !important;
+    color: #ffffff !important;
+}
+
 /* Font Size Modifiers - Small (작게) */
 body.font-sm, body.font-sm .subtitle, body.font-sm .settings-label span { font-size: 12px !important; }
 body.font-sm th { font-size: 10px !important; }
