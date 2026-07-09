@@ -118,11 +118,107 @@ const kpiTopClientAmountEl = document.getElementById('kpiTopClientAmount');
 const smartAlertsPanel = document.getElementById('smartAlertsPanel');
 const smartAlertText = document.getElementById('smartAlertText');
 
+// ============================================================
+// --- WONMA FISHERIES CROSS-DEVICE CLOUD SYNC & AUTO-REFRESH ---
+// ============================================================
+const WONMA_APP_VERSION = '20260709_19';
+const WONMA_CLOUD_SYNC_ID = '1360001112223334445';
+let lastCheckTime = 0;
+let lastSyncTimestamp = Number(localStorage.getItem('wonma_sync_timestamp') || 0);
+
+async function checkAutoUpdateOnMobileLaunch() {
+    try {
+        if (Date.now() - lastCheckTime < 8000) return; // Prevent spamming
+        lastCheckTime = Date.now();
+        const res = await fetch(window.location.pathname + '?t=' + Date.now(), {
+            method: 'GET',
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+        });
+        if (res.ok) {
+            const html = await res.text();
+            const match = html.match(/app\.js\?v=([a-zA-Z0-9_]+)/);
+            if (match && match[1] && match[1] !== WONMA_APP_VERSION) {
+                console.log(`[Auto-Update] New version detected (${match[1]} vs ${WONMA_APP_VERSION}). Auto-refreshing PWA...`);
+                window.location.reload(true);
+            }
+        }
+    } catch (e) {
+        // Offline or fetch error
+    }
+}
+
+async function pushCredentialsToCloud(pin, pwd) {
+    try {
+        const payload = {
+            pin: String(pin || '1234'),
+            pwd: String(pwd || 'admin'),
+            updatedAt: Date.now()
+        };
+        localStorage.setItem('wonma_sync_timestamp', payload.updatedAt);
+        await fetch(`https://jsonblob.com/api/jsonBlob/${WONMA_CLOUD_SYNC_ID}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).catch(async (err) => {
+            // If 404 on first time, create it
+            await fetch('https://jsonblob.com/api/jsonBlob', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+        });
+        console.log('[Cloud Sync] Successfully synchronized PIN & Password across PC & Mobile.');
+    } catch (e) {
+        console.warn('[Cloud Sync] Push fallback:', e);
+    }
+}
+
+async function syncPinAndPasswordFromCloud() {
+    try {
+        const res = await fetch(`https://jsonblob.com/api/jsonBlob/${WONMA_CLOUD_SYNC_ID}?t=` + Date.now(), {
+            method: 'GET',
+            cache: 'no-store'
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data && data.pin && data.pwd) {
+                const cloudTime = Number(data.updatedAt || 0);
+                if (cloudTime > lastSyncTimestamp || data.pin !== ADMIN_PIN || data.pwd !== ADMIN_PASSWORD) {
+                    ADMIN_PIN = String(data.pin);
+                    ADMIN_PASSWORD = String(data.pwd);
+                    localStorage.setItem('wonma_admin_pin', ADMIN_PIN);
+                    localStorage.setItem('wonma_admin_pwd', ADMIN_PASSWORD);
+                    localStorage.setItem('wonma_sync_timestamp', cloudTime);
+                    lastSyncTimestamp = cloudTime;
+                    console.log('[Cloud Sync] Updated local credentials from Cloud Sync.');
+                }
+            }
+        }
+    } catch (e) {
+        // Offline or fallback to local storage
+    }
+}
+
+// Automatically sync & check for update when app opens on mobile or PC
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        checkAutoUpdateOnMobileLaunch();
+        syncPinAndPasswordFromCloud();
+    }
+});
+window.addEventListener('focus', () => {
+    checkAutoUpdateOnMobileLaunch();
+    syncPinAndPasswordFromCloud();
+});
+
 // Initialization
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
     renderTable();
     updateStats();
+    checkAutoUpdateOnMobileLaunch();
+    syncPinAndPasswordFromCloud();
 });
 
 // Login Management
@@ -1563,6 +1659,7 @@ if(pinSetForm) {
         
         ADMIN_PIN = newPin;
         localStorage.setItem('wonma_admin_pin', newPin);
+        pushCredentialsToCloud(ADMIN_PIN, ADMIN_PASSWORD);
         
         pinSetMsg.textContent = '간편 PIN 번호가 성공적으로 저장되었습니다!';
         pinSetMsg.style.color = 'var(--color-miyeok)';
@@ -1606,6 +1703,7 @@ if (passwordForm) {
         
         ADMIN_PASSWORD = newPwd;
         localStorage.setItem('wonma_admin_pwd', newPwd);
+        pushCredentialsToCloud(ADMIN_PIN, ADMIN_PASSWORD);
         
         passwordMsg.textContent = '비밀번호가 성공적으로 변경되었습니다.';
         passwordMsg.style.color = 'var(--color-miyeok)'; // Emerald green
