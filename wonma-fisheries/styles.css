@@ -142,6 +142,23 @@ body.theme-light .login-tab-btn.active {
     color: #ffffff !important;
 }
 
+/* Light Mode Overrides for Mobile Nav Bars */
+body.theme-light .mobile-top-bar {
+    background: rgba(255, 255, 255, 0.95) !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+}
+body.theme-light .mobile-bottom-nav {
+    background: rgba(255, 255, 255, 0.95) !important;
+    border-top: 1px solid #e2e8f0 !important;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08) !important;
+}
+body.theme-light .mob-nav-item {
+    color: #64748b !important;
+}
+body.theme-light .mob-nav-item.active {
+    color: #0284c7 !important;
+}
+
 /* Font Size Modifiers - Small (작게) */
 body.font-sm, body.font-sm .subtitle, body.font-sm .settings-label span { font-size: 12px !important; }
 body.font-sm th { font-size: 10px !important; }
