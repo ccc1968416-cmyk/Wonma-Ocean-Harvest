@@ -121,8 +121,7 @@ const smartAlertText = document.getElementById('smartAlertText');
 // ============================================================
 // --- WONMA FISHERIES CROSS-DEVICE CLOUD SYNC & AUTO-REFRESH ---
 // ============================================================
-const WONMA_APP_VERSION = '20260709_19';
-const WONMA_CLOUD_SYNC_ID = '1360001112223334445';
+const WONMA_APP_VERSION = '20260709_20';
 let lastCheckTime = 0;
 let lastSyncTimestamp = Number(localStorage.getItem('wonma_sync_timestamp') || 0);
 
@@ -150,25 +149,27 @@ async function checkAutoUpdateOnMobileLaunch() {
 
 async function pushCredentialsToCloud(pin, pwd) {
     try {
-        const payload = {
+        const payloadObj = {
             pin: String(pin || '1234'),
             pwd: String(pwd || 'admin'),
             updatedAt: Date.now()
         };
-        localStorage.setItem('wonma_sync_timestamp', payload.updatedAt);
-        await fetch(`https://jsonblob.com/api/jsonBlob/${WONMA_CLOUD_SYNC_ID}`, {
+        const payloadStr = JSON.stringify(payloadObj);
+        localStorage.setItem('wonma_sync_timestamp', payloadObj.updatedAt);
+        
+        // Primary Redundant Sync: kvdb.io
+        fetch('https://kvdb.io/ADnE39zZ6kS1zP2E68d2M/wonma_creds', {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        }).catch(async (err) => {
-            // If 404 on first time, create it
-            await fetch('https://jsonblob.com/api/jsonBlob', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-        });
-        console.log('[Cloud Sync] Successfully synchronized PIN & Password across PC & Mobile.');
+            body: payloadStr
+        }).catch(() => {});
+
+        // Secondary Redundant Sync: api.keyvalue.xyz
+        fetch('https://api.keyvalue.xyz/3e7284f1/wonma_creds', {
+            method: 'POST',
+            body: payloadStr
+        }).catch(() => {});
+
+        console.log('[Cloud Sync] Successfully synchronized PIN & Password to Redundant Cloud Hub.');
     } catch (e) {
         console.warn('[Cloud Sync] Push fallback:', e);
     }
@@ -176,27 +177,38 @@ async function pushCredentialsToCloud(pin, pwd) {
 
 async function syncPinAndPasswordFromCloud() {
     try {
-        const res = await fetch(`https://jsonblob.com/api/jsonBlob/${WONMA_CLOUD_SYNC_ID}?t=` + Date.now(), {
-            method: 'GET',
-            cache: 'no-store'
-        });
-        if (res.ok) {
-            const data = await res.json();
-            if (data && data.pin && data.pwd) {
-                const cloudTime = Number(data.updatedAt || 0);
-                if (cloudTime > lastSyncTimestamp || data.pin !== ADMIN_PIN || data.pwd !== ADMIN_PASSWORD) {
-                    ADMIN_PIN = String(data.pin);
-                    ADMIN_PASSWORD = String(data.pwd);
-                    localStorage.setItem('wonma_admin_pin', ADMIN_PIN);
-                    localStorage.setItem('wonma_admin_pwd', ADMIN_PASSWORD);
-                    localStorage.setItem('wonma_sync_timestamp', cloudTime);
-                    lastSyncTimestamp = cloudTime;
-                    console.log('[Cloud Sync] Updated local credentials from Cloud Sync.');
-                }
+        let data = null;
+        try {
+            const res = await fetch('https://kvdb.io/ADnE39zZ6kS1zP2E68d2M/wonma_creds?t=' + Date.now(), { cache: 'no-store' });
+            if (res.ok) data = await res.json();
+        } catch (e) {}
+
+        if (!data) {
+            try {
+                const res2 = await fetch('https://api.keyvalue.xyz/3e7284f1/wonma_creds?t=' + Date.now(), { cache: 'no-store' });
+                if (res2.ok) data = await res2.json();
+            } catch (e) {}
+        }
+
+        if (data && data.pin && data.pwd) {
+            const cloudTime = Number(data.updatedAt || 0);
+            if (cloudTime > lastSyncTimestamp || data.pin !== ADMIN_PIN || data.pwd !== ADMIN_PASSWORD) {
+                ADMIN_PIN = String(data.pin);
+                ADMIN_PASSWORD = String(data.pwd);
+                localStorage.setItem('wonma_admin_pin', ADMIN_PIN);
+                localStorage.setItem('wonma_admin_pwd', ADMIN_PASSWORD);
+                localStorage.setItem('wonma_sync_timestamp', cloudTime);
+                lastSyncTimestamp = cloudTime;
+                console.log('[Cloud Sync] Updated local credentials from Cloud Sync Hub.');
+            }
+        } else {
+            // First time initialization: push PC's current PIN & Password to Cloud so Mobile receives it immediately
+            if (localStorage.getItem('wonma_admin_pin') || localStorage.getItem('wonma_admin_pwd')) {
+                pushCredentialsToCloud(ADMIN_PIN, ADMIN_PASSWORD);
             }
         }
     } catch (e) {
-        // Offline or fallback to local storage
+        // Offline fallback
     }
 }
 
@@ -219,6 +231,12 @@ document.addEventListener('DOMContentLoaded', () => {
     updateStats();
     checkAutoUpdateOnMobileLaunch();
     syncPinAndPasswordFromCloud();
+    // Proactively sync local credentials on startup
+    setTimeout(() => {
+        if (localStorage.getItem('wonma_admin_pin')) {
+            pushCredentialsToCloud(ADMIN_PIN, ADMIN_PASSWORD);
+        }
+    }, 1000);
 });
 
 // Login Management
