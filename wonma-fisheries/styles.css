@@ -27,56 +27,75 @@
     overflow-wrap: break-word;
 }
 /* Light Theme Overrides */
+/* Complete Premium Light Theme Overrides */
 body.theme-light {
     --bg-main: #f1f5f9;
     --bg-panel: #ffffff;
     --bg-panel-hover: #f8fafc;
     --text-main: #0f172a;
-    --text-muted: #64748b;
+    --text-muted: #475569;
     --border-color: #e2e8f0;
 }
 
-/* Base elements light mode specific tweaks */
-body.theme-light .solid-panel {
-    background: var(--bg-panel);
-    border-color: var(--border-color);
+body.theme-light .solid-panel,
+body.theme-light .premium-card,
+body.theme-light .settings-group,
+body.theme-light .stat-card,
+body.theme-light .inv-gauge-card,
+body.theme-light .crm-card,
+body.theme-light .table-header,
+body.theme-light .modal-content {
+    background: #ffffff !important;
+    border-color: #e2e8f0 !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06) !important;
 }
+
 body.theme-light .sidebar {
-    background: #ffffff;
-    border-right-color: var(--border-color);
+    background: #ffffff !important;
+    border-right: 1px solid #e2e8f0 !important;
 }
+
 body.theme-light .nav-item {
-    color: var(--text-muted);
+    color: #475569 !important;
 }
 body.theme-light .nav-item:hover {
-    background: #f1f5f9;
-    color: var(--text-main);
+    background: #f1f5f9 !important;
+    color: #0f172a !important;
 }
 body.theme-light .nav-item.active {
-    background: rgba(59, 130, 246, 0.1);
-    color: var(--primary);
-    border-left-color: var(--primary);
+    background: rgba(14, 165, 233, 0.12) !important;
+    color: #0284c7 !important;
+    border-left-color: #0284c7 !important;
 }
+
 body.theme-light .form-control {
-    background: #ffffff;
-    color: var(--text-main);
-    border-color: #cbd5e1;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border-color: #cbd5e1 !important;
 }
 body.theme-light input[type="date"].form-control {
     color-scheme: light;
 }
 body.theme-light .form-control.read-only {
-    background: #f1f5f9;
-    color: #94a3b8;
+    background: #f1f5f9 !important;
+    color: #64748b !important;
 }
-body.theme-light .stat-card {
-    background: var(--bg-panel);
-}
-body.theme-light .table-header h3, 
-body.theme-light th, 
+
+body.theme-light h1,
+body.theme-light h2,
+body.theme-light h3,
+body.theme-light h4,
+body.theme-light .table-header h3,
+body.theme-light th,
 body.theme-light .logo-text,
-body.theme-light .header-title h2 {
-    color: var(--text-main);
+body.theme-light .settings-label strong {
+    color: #0f172a !important;
+}
+
+body.theme-light .settings-label span,
+body.theme-light .subtitle,
+body.theme-light td {
+    color: #334155;
 }
 
 /* Font Size Modifiers - Small (작게) */
