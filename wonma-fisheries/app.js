@@ -121,7 +121,7 @@ const smartAlertText = document.getElementById('smartAlertText');
 // ============================================================
 // --- WONMA FISHERIES CROSS-DEVICE CLOUD SYNC & AUTO-REFRESH ---
 // ============================================================
-const WONMA_APP_VERSION = '20260709_20';
+const WONMA_APP_VERSION = '20260713_2';
 let lastCheckTime = 0;
 let lastSyncTimestamp = Number(localStorage.getItem('wonma_sync_timestamp') || 0);
 
@@ -138,8 +138,12 @@ async function checkAutoUpdateOnMobileLaunch() {
             const html = await res.text();
             const match = html.match(/app\.js\?v=([a-zA-Z0-9_]+)/);
             if (match && match[1] && match[1] !== WONMA_APP_VERSION) {
-                console.log(`[Auto-Update] New version detected (${match[1]} vs ${WONMA_APP_VERSION}). Auto-refreshing PWA...`);
-                window.location.reload(true);
+                const alreadyReloaded = sessionStorage.getItem('wonma_auto_reloaded_ver');
+                if (alreadyReloaded !== match[1]) {
+                    sessionStorage.setItem('wonma_auto_reloaded_ver', match[1]);
+                    console.log(`[Auto-Update] New version detected (${match[1]} vs ${WONMA_APP_VERSION}). Auto-refreshing PWA once...`);
+                    window.location.reload(true);
+                }
             }
         }
     } catch (e) {
