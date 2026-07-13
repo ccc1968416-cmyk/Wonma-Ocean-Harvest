@@ -121,7 +121,7 @@ const smartAlertText = document.getElementById('smartAlertText');
 // ============================================================
 // --- WONMA FISHERIES CROSS-DEVICE CLOUD SYNC & AUTO-REFRESH ---
 // ============================================================
-const WONMA_APP_VERSION = '20260713_2';
+const WONMA_APP_VERSION = '20260713_3';
 let lastCheckTime = 0;
 let lastSyncTimestamp = Number(localStorage.getItem('wonma_sync_timestamp') || 0);
 
@@ -2096,7 +2096,7 @@ function closeProfileModal() {
 }
 
 window.handleLogout = function() {
-    if (!confirm("안전하게 로그아웃하고 시스템을 잠금(Lock) 하시겠습니까?")) return;
+    if (!confirm("[원마수산 스마트 원물 관리 프로그램]\n\n로그아웃 하시겠습니까?\n로그아웃 시 데이터 보호를 위해 간편 PIN 접속 화면으로 안전하게 전환됩니다.")) return;
     sessionStorage.removeItem('wonma_auth');
     if(window.clearPinInput) window.clearPinInput();
     const pwdInput = document.getElementById('adminPassword');
@@ -2107,7 +2107,7 @@ window.handleLogout = function() {
     if(typeof closeProfileModal === 'function') closeProfileModal();
     initLoginGreeting();
     if(typeof playHapticBeep === 'function') playHapticBeep(440, 'sine', 0.08, 0.15);
-    if(typeof showToast === 'function') showToast("🔒 안전하게 로그아웃되어 시스템이 잠겼습니다.");
+    if(typeof showToast === 'function') showToast("🔒 원마수산 관리 시스템에서 안전하게 로그아웃되었습니다.");
 };
 
 if (logoutBtn) {
